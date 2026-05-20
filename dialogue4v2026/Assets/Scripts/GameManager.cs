@@ -1,21 +1,54 @@
-using UnityEngine;
+using System;
 using System.Collections;
+using UnityEngine;
+using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine.InputSystem;
 using UnityEngine.SceneManagement;
 
 namespace Core
 {
     public class GameManager : MonoBehaviour
     {
+        public enum GameState
+        {
+            Iniciando,
+            Splash,
+            MenuPrincipal,
+            Gameplay
+        }
+
+        private class HashMap
+        {
+            public readonly Dictionary<string, GameState> getSceneDictionary = new();
+
+            public HashMap(string firstState, string secondState, string thirdState)
+            {
+                getSceneDictionary.Add(firstState, GameState.Splash);
+                getSceneDictionary.Add(secondState, GameState.MenuPrincipal);
+                getSceneDictionary.Add(thirdState, GameState.Gameplay);
+            }
+        }
+
+        private HashMap _hashTable = new("Splash", "Menu", "SampleScene");
+
         private static GameManager _instance;
-        
+
         private GameState _currentState;
+        public GameState State
+        {
+            set
+            {
+                _currentState = value;
+                if (_currentState == GameState.Gameplay)
+                    OnGameplayEntered?.Invoke();
+            }
+        }
 
-        private bool m_CanSwitchScene;
-        
         public static GameManager Instance => _instance;
-        public GameState State => _currentState;
+        public static event Action OnGameplayEntered;
 
-        void Awake()
+        private void Awake()
         {
             if (_instance != null && _instance != this)
             {
@@ -26,11 +59,19 @@ namespace Core
             DontDestroyOnLoad(gameObject);
         }
 
-        void Start()
+        private void OnEnable()
+        {
+            OnGameplayEntered += HandleGameplayEnter;
+        }
+        private void OnDisable()
+        {
+            OnGameplayEntered -= HandleGameplayEnter;
+        }
+
+        private void Start()
         {
             _currentState = GameState.Iniciando;
             Debug.Log($"GameManager: State changed to {_currentState}");
-            StartCoroutine(StartRoutine());
         }
 
         public bool IsInGameplay()
@@ -38,7 +79,7 @@ namespace Core
             return _currentState == GameState.Gameplay;
         }
 
-        public bool CanTransitionTo(GameState newState)
+        private bool CanTransitionTo(GameState newState)
         {
             switch (_currentState)
             {
@@ -54,63 +95,64 @@ namespace Core
                     return false;
             }
         }
-        
-        public void ChangeState(GameState newState)
+
+        public void LoadScene(string scene)
         {
-            if (!CanTransitionTo(newState))
+            var state = _hashTable.getSceneDictionary[scene];
+            if (!CanTransitionTo(state))
                 return;
 
-            _currentState = newState;
-
-            switch (newState)
+            switch (state)
             {
                 case GameState.Splash:
-                    LoadScene("Splash");
+                    ChangeScene("Splash");
                     break;
                 case GameState.MenuPrincipal:
-                    LoadScene("Menu");
+                    ChangeScene("Menu");
                     break;
                 case GameState.Gameplay:
-                    LoadScene("SampleScene");
+                    ChangeScene("SampleScene");
                     break;
             }
 
-            Debug.Log($"GameManager: State changed to {newState}");
+            _currentState = state;
+            Debug.Log($"GameManager: State changed to {_currentState}");
+        }
+
+        private void HandleGameplayEnter()
+        {
+            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.Locked;
         }
 
         public void StartGame()
         {
-            ChangeState(GameState.Gameplay);
+            StartCoroutine(StartGameRoutine());
+        }
+
+        private IEnumerator StartGameRoutine()
+        {
+            yield return SceneManager.LoadSceneAsync("SampleScene", LoadSceneMode.Single);
+
+            yield return SceneManager.LoadSceneAsync("GUI", LoadSceneMode.Additive);
+
+            State = GameState.Gameplay;
+            Debug.Log($"GameManager: State changed to {_currentState}");
         }
 
         public void Quit()
         {
 #if UNITY_EDITOR
-            UnityEditor.EditorApplication.isPlaying = false;
+            EditorApplication.isPlaying = false;
 #else
             Application.Quit();
 #endif
         }
 
-        private IEnumerator StartRoutine()
+        public void ChangeScene(string sceneName)
         {
-            yield return null;
-
-            m_CanSwitchScene = true;
-            ChangeState(GameState.Splash);
-
-            yield return null;
-            m_CanSwitchScene = false;
-
-            yield return new WaitForSeconds(2f);
-
-            m_CanSwitchScene = true;
-            ChangeState(GameState.MenuPrincipal);
-        }
-
-        public void LoadScene(string sceneName)
-        {
-            if (!m_CanSwitchScene)
+            var state = _hashTable.getSceneDictionary[sceneName];
+            if (!CanTransitionTo(state))
             {
                 Debug.LogWarning("Scene switch not allowed right now.");
                 return;
