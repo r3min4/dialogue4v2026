@@ -59,14 +59,14 @@ namespace Core
             DontDestroyOnLoad(gameObject);
         }
 
-        private void OnEnable()
-        {
-            OnGameplayEntered += HandleGameplayEnter;
-        }
-        private void OnDisable()
-        {
-            OnGameplayEntered -= HandleGameplayEnter;
-        }
+        // private void OnEnable()
+        // {
+        //     OnGameplayEntered += HandleGameplayEnter;
+        // }
+        // private void OnDisable()
+        // {
+        //     OnGameplayEntered -= HandleGameplayEnter;
+        // }
 
         private void Start()
         {
